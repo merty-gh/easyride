@@ -30,12 +30,12 @@ class ApiService {
       );
       
       if (response.statusCode == 200) {
-        addLog("✅ ОК! Сила: ${force.toStringAsFixed(1)}, Скор: ${speed.toStringAsFixed(1)} км/ч");
+        addLog("ОК! Сила: ${force.toStringAsFixed(1)}, Скор: ${speed.toStringAsFixed(1)} км/ч");
       } else {
-        addLog("❌ Ошибка сервера: Код ${response.statusCode}");
+        addLog("Ошибка сервера: Код ${response.statusCode}");
       }
     } catch (e) {
-      addLog("❌ Ошибка сети: Нет связи с сервером");
+      addLog("Ошибка сети: Нет связи с сервером");
     }
   }
 

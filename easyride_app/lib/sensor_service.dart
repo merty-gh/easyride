@@ -11,11 +11,11 @@ class SensorService {
 
   void startMonitoring() async {
     isMonitoring = true;
-    ApiService.addLog("🚀 Мониторинг запущен. Ждем ямы...");
+    ApiService.addLog("Мониторинг запущен. Ждем ямы...");
     
     LocationPermission permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      ApiService.addLog("❌ Ошибка: Нет доступа к GPS!");
+      ApiService.addLog("Ошибка: Нет доступа к GPS!");
       return;
     }
 
@@ -51,6 +51,6 @@ class SensorService {
 
   void stopMonitoring() {
     isMonitoring = false;
-    ApiService.addLog("🛑 Мониторинг остановлен");
+    ApiService.addLog("Мониторинг остановлен");
   }
 }

@@ -70,7 +70,7 @@ class _DashboardState extends State<Dashboard> {
                   ),
                   onPressed: _toggleTracking,
                   child: Text(
-                    _isActive ? "Остановить" : "Поехали!",
+                    _isActive ? "Остановить" : "Поехали",
                     style: const TextStyle(fontSize: 18),
                   ),
                 ),
