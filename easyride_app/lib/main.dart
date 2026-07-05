@@ -1,122 +1,75 @@
-import 'package:flutter/material.dart';
-import 'sensor_service.dart';
+import 'dart:async';
+import 'dart:math';
+import 'dart:isolate';
+
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'api_service.dart';
-import 'map_screen.dart';
 
-void main() {
-  runApp(const MyApp()); // Исправлена ошибка с const
+// Точка входа для фонового процесса
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(SensorTaskHandler());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key}); // Исправлено предупреждение о ключе
+class SensorTaskHandler extends TaskHandler {
+  StreamSubscription? _accelSubscription;
+  bool isMonitoring = true;
+  final double bumpThreshold = 15.0; // Порог ямы
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Dashboard(),
-    );
+  void onRepeatEvent(DateTime timestamp) {
+    // ничего не делаем (или можно добавить логирование при необходимости)
   }
-}
-
-class Dashboard extends StatefulWidget {
-  const Dashboard({super.key});
 
   @override
-  State<Dashboard> createState() => _DashboardState(); // Исправлен модификатор
-}
+  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
+    // Отправляем сообщение из фона в главный экран приложения
+    FlutterForegroundTask.sendDataToMain("Фоновый мониторинг запущен...");
 
-class _DashboardState extends State<Dashboard> {
-  final SensorService _sensorService = SensorService();
-  bool _isActive = false;
+    _accelSubscription = userAccelerometerEventStream().listen((event) async {
+      if (!isMonitoring) return;
 
-  void _toggleTracking() {
-    setState(() {
-      _isActive = !_isActive;
+      double force = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+
+      if (force > bumpThreshold) {
+        isMonitoring = false; // Блокируем сенсор на время отправки ямы
+
+        try {
+          Position position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
+          );
+          
+          double speedKmh = position.speed * 3.6;
+
+          if (speedKmh > 20.0) {
+            FlutterForegroundTask.sendDataToMain("УДАР (${force.toStringAsFixed(1)}). Отправка...");
+            // Отправляем на сервер прямо из фонового режима
+            await ApiService.sendBump(position.latitude, position.longitude, speedKmh, force);
+          } else {
+            FlutterForegroundTask.sendDataToMain("Удар, но скорость мала: ${speedKmh.toStringAsFixed(1)} км/ч");
+          }
+        } catch (e) {
+          FlutterForegroundTask.sendDataToMain("Ошибка GPS в фоне: $e");
+        }
+
+        // Ждем 2 секунды перед тем, как ловить следующую яму
+        Future.delayed(const Duration(seconds: 2), () {
+          isMonitoring = true;
+        });
+      }
     });
-    if (_isActive) {
-      _sensorService.startMonitoring();
-    } else {
-      _sensorService.stopMonitoring();
-    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("EasyRide MVP: Логи"),
-        backgroundColor: Colors.black87,
-      ),
-      body: Column(
-        children: [
-          // Блок с кнопкой (Верхняя часть)
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Text(
-                  _isActive ? "Сканирование дороги ИДЕТ" : "Сканирование ОТКЛЮЧЕНО",
-                  style: TextStyle(
-                      fontSize: 18, 
-                      fontWeight: FontWeight.bold,
-                      color: _isActive ? Colors.green : Colors.red),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-                    backgroundColor: _isActive ? Colors.red : Colors.green,
-                  ),
-                  onPressed: _toggleTracking,
-                  child: Text(
-                    _isActive ? "Остановить" : "Поехали",
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                ),
-                const SizedBox(height: 15), // Отступ
-                // НОВАЯ КНОПКА ДЛЯ КАРТЫ
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.map, color: Colors.blueAccent),
-                  label: const Text("Открыть карту", style: TextStyle(color: Colors.blueAccent)),
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen()));
-                  },
-                ),
-              ],
-            ),
-          ),
-          const Divider(thickness: 2),
-          // Блок с логами (Нижняя часть)
-          Expanded(
-            child: Container(
-              color: Colors.black87,
-              padding: const EdgeInsets.all(10),
-              child: ValueListenableBuilder<List<String>>(
-                valueListenable: ApiService.logs,
-                builder: (context, logs, child) {
-                  return ListView.builder(
-                    itemCount: logs.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Text(
-                          logs[index],
-                          style: const TextStyle(
-                            color: Colors.greenAccent, 
-                            fontFamily: 'monospace',
-                            fontSize: 13
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
+    // Вызывается по таймеру, нам тут ничего делать не нужно
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {
+    await _accelSubscription?.cancel();
+    FlutterForegroundTask.sendDataToMain("Фоновый мониторинг остановлен");
   }
 }

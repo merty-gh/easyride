@@ -46,7 +46,7 @@ class ApiService {
         return jsonDecode(response.body);
       }
     } catch (e) {
-      print("Ошибка загрузки карты: $e");
+      debugPrint("Ошибка загрузки карты: $e");
     }
     return [];
   }
