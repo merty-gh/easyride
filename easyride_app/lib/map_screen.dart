@@ -12,7 +12,7 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   List<CircleMarker> _roadSegments = [];
-  List<Marker> _unconfirmedMarkers = []; // Для серых/неподтвержденных ям
+  List<Marker> _unconfirmedMarkers = [];
 
   @override
   void initState() {
@@ -32,8 +32,6 @@ class _MapScreenState extends State<MapScreen> {
       LatLng point = LatLng(b['lat'], b['lon']);
 
       if (!isConfirmed) {
-        // Если яма еще не подтверждена (проехал только 1 человек 1 раз)
-        // Рисуем маленькую бледную точку, чтобы показать, что данные собираются
         unconfirmed.add(
           Marker(
             point: point,
@@ -42,18 +40,17 @@ class _MapScreenState extends State<MapScreen> {
             child: const Icon(Icons.circle, color: Colors.grey, size: 15),
           )
         );
-        continue; // Переходим к следующей яме
+        continue;
       }
 
-      // Если яма подтверждена, определяем цвет по ТЗ
-      Color roadColor = Colors.lightGreenAccent; // салатовый для маленьких ям
-      double radius = 10.0; // Размер пятна на дороге (в метрах)
+      Color roadColor = Colors.lightGreenAccent; 
+      double radius = 10.0; 
 
       if (force > 30) {
-        roadColor = Colors.redAccent.withOpacity(0.7); // Большая яма - красный
+        roadColor = Colors.redAccent.withValues(alpha: 0.7); // Исправлено здесь
         radius = 15.0;
       } else if (force > 20) {
-        roadColor = Colors.orangeAccent.withOpacity(0.7); // Средняя яма - желтый/оранжевый
+        roadColor = Colors.orangeAccent.withValues(alpha: 0.7); // Исправлено здесь
         radius = 12.0;
       }
 
@@ -62,7 +59,7 @@ class _MapScreenState extends State<MapScreen> {
           point: point,
           color: roadColor,
           borderStrokeWidth: 0,
-          useRadiusInMeter: true, // Круг будет масштабироваться вместе с картой!
+          useRadiusInMeter: true,
           radius: radius,
         )
       );
@@ -85,14 +82,11 @@ class _MapScreenState extends State<MapScreen> {
         ),
         children: [
           TileLayer(
-            // Используем темную тему карты (чтобы яркие круги было лучше видно)
             urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
             subdomains: const ['a', 'b', 'c', 'd'],
             userAgentPackageName: 'com.easyride.app',
           ),
-          // Сначала рисуем цветные пятна подтвержденных дорог
           CircleLayer(circles: _roadSegments),
-          // Поверх рисуем серые точки неподтвержденных
           MarkerLayer(markers: _unconfirmedMarkers),
         ],
       ),

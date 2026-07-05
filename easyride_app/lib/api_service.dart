@@ -5,13 +5,10 @@ import 'package:flutter/foundation.dart';
 class ApiService {
   static const String apiUrl = 'http://64.188.74.72:8000/api/v1/telemetry'; 
   
-  // Глобальная переменная для хранения логов на экране
   static ValueNotifier<List<String>> logs = ValueNotifier([]);
 
-  // Метод для добавления новой строчки лога
   static void addLog(String message) {
     final time = DateTime.now().toString().split(' ').last.substring(0, 8);
-    // Добавляем новый лог в начало списка
     logs.value = ["[$time] $message", ...logs.value]; 
   }
 
@@ -30,7 +27,7 @@ class ApiService {
       );
       
       if (response.statusCode == 200) {
-        addLog("ОК! Сила: ${force.toStringAsFixed(1)}, Скор: ${speed.toStringAsFixed(1)} км/ч");
+        addLog("УСПЕХ! Сила: ${force.toStringAsFixed(1)}, Скорость: ${speed.toStringAsFixed(1)} км/ч");
       } else {
         addLog("Ошибка сервера: Код ${response.statusCode}");
       }

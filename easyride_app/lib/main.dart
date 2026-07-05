@@ -1,75 +1,178 @@
-import 'dart:async';
-import 'dart:math';
-import 'dart:isolate';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:sensors_plus/sensors_plus.dart';
+import 'sensor_service.dart';
 import 'api_service.dart';
+import 'map_screen.dart';
 
-// Точка входа для фонового процесса
-@pragma('vm:entry-point')
-void startCallback() {
-  FlutterForegroundTask.setTaskHandler(SensorTaskHandler());
+void main() {
+  FlutterForegroundTask.initCommunicationPort();
+  runApp(const MyApp()); 
 }
 
-class SensorTaskHandler extends TaskHandler {
-  StreamSubscription? _accelSubscription;
-  bool isMonitoring = true;
-  final double bumpThreshold = 15.0; // Порог ямы
+class MyApp extends StatelessWidget {
+  const MyApp({super.key}); 
 
   @override
-  void onRepeatEvent(DateTime timestamp) {
-    // ничего не делаем (или можно добавить логирование при необходимости)
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Dashboard(),
+    );
+  }
+}
+
+class Dashboard extends StatefulWidget {
+  const Dashboard({super.key});
+
+  @override
+  State<Dashboard> createState() => _DashboardState(); 
+}
+
+class _DashboardState extends State<Dashboard> {
+  bool _isActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initForegroundTask();
+    // ИСПРАВЛЕНО: Новый метод прослушивания данных из фона
+    FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
   }
 
   @override
-  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
-    // Отправляем сообщение из фона в главный экран приложения
-    FlutterForegroundTask.sendDataToMain("Фоновый мониторинг запущен...");
+  void dispose() {
+    // Очищаем прослушиватель при закрытии
+    FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
+    super.dispose();
+  }
 
-    _accelSubscription = userAccelerometerEventStream().listen((event) async {
-      if (!isMonitoring) return;
+  // ИСПРАВЛЕНО: Функция для получения логов
+  void _onReceiveTaskData(Object data) {
+    if (data is String) {
+      ApiService.addLog(data);
+    }
+  }
 
-      double force = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+  Future<void> _initForegroundTask() async {
+    await Geolocator.requestPermission();
+    await FlutterForegroundTask.requestNotificationPermission();
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
 
-      if (force > bumpThreshold) {
-        isMonitoring = false; // Блокируем сенсор на время отправки ямы
+    // ИСПРАВЛЕНО: Обновленный синтаксис настроек под версию 9.x
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'easyride_tracking',
+        channelName: 'EasyRide Tracking',
+        channelDescription: 'Сканирование ям работает в фоне',
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
+        // iconData убран, подхватится стандартная иконка
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: true,
+        playSound: false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(5000), // Новый синтаксис интервала
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+  }
 
-        try {
-          Position position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
-          );
-          
-          double speedKmh = position.speed * 3.6;
-
-          if (speedKmh > 20.0) {
-            FlutterForegroundTask.sendDataToMain("УДАР (${force.toStringAsFixed(1)}). Отправка...");
-            // Отправляем на сервер прямо из фонового режима
-            await ApiService.sendBump(position.latitude, position.longitude, speedKmh, force);
-          } else {
-            FlutterForegroundTask.sendDataToMain("Удар, но скорость мала: ${speedKmh.toStringAsFixed(1)} км/ч");
-          }
-        } catch (e) {
-          FlutterForegroundTask.sendDataToMain("Ошибка GPS в фоне: $e");
-        }
-
-        // Ждем 2 секунды перед тем, как ловить следующую яму
-        Future.delayed(const Duration(seconds: 2), () {
-          isMonitoring = true;
-        });
+  void _toggleTracking() async {
+    if (_isActive) {
+      await FlutterForegroundTask.stopService();
+      setState(() => _isActive = false);
+    } else {
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.stopService();
       }
-    });
+      await FlutterForegroundTask.startService(
+        notificationTitle: 'EasyRide',
+        notificationText: 'Сканирование дороги активно',
+        callback: startCallback,
+      );
+      setState(() => _isActive = true);
+    }
   }
 
   @override
-  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
-    // Вызывается по таймеру, нам тут ничего делать не нужно
-  }
-
-  @override
-  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {
-    await _accelSubscription?.cancel();
-    FlutterForegroundTask.sendDataToMain("Фоновый мониторинг остановлен");
+  Widget build(BuildContext context) {
+    return WithForegroundTask(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("EasyRide MVP: Логи"),
+          backgroundColor: Colors.black87,
+        ),
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Text(
+                    _isActive ? "Сканирование ИДЕТ" : "Сканирование ОТКЛЮЧЕНО",
+                    style: TextStyle(
+                        fontSize: 18, 
+                        fontWeight: FontWeight.bold,
+                        color: _isActive ? Colors.green : Colors.red),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
+                      backgroundColor: _isActive ? Colors.red : Colors.green,
+                    ),
+                    onPressed: _toggleTracking,
+                    child: Text(
+                      _isActive ? "Остановить" : "Поехали",
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.map, color: Colors.blueAccent),
+                    label: const Text("Открыть карту", style: TextStyle(color: Colors.blueAccent)),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen()));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const Divider(thickness: 2),
+            Expanded(
+              child: Container(
+                color: Colors.black87,
+                padding: const EdgeInsets.all(10),
+                child: ValueListenableBuilder<List<String>>(
+                  valueListenable: ApiService.logs,
+                  builder: (context, logs, child) {
+                    return ListView.builder(
+                      itemCount: logs.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            logs[index],
+                            style: const TextStyle(
+                              color: Colors.greenAccent, 
+                              fontFamily: 'monospace',
+                              fontSize: 13
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

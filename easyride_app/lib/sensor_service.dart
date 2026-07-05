@@ -17,8 +17,7 @@ class SensorTaskHandler extends TaskHandler {
   final double bumpThreshold = 15.0; // Порог ямы
 
   @override
-  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
-    // Отправляем сообщение из фона в главный экран приложения
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     FlutterForegroundTask.sendDataToMain("Фоновый мониторинг запущен...");
 
     _accelSubscription = userAccelerometerEventStream().listen((event) async {
@@ -55,13 +54,14 @@ class SensorTaskHandler extends TaskHandler {
     });
   }
 
+  // ИСПРАВЛЕНО: Убран лишний параметр SendPort
   @override
-  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
-    // Вызывается по таймеру, нам тут ничего делать не нужно
+  void onRepeatEvent(DateTime timestamp) {
+    // Вызывается периодически по таймеру
   }
 
   @override
-  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {
+  Future<void> onDestroy(DateTime timestamp, bool isTaskDestroyed) async {
     await _accelSubscription?.cancel();
     FlutterForegroundTask.sendDataToMain("Фоновый мониторинг остановлен");
   }
