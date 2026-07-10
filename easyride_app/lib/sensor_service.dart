@@ -5,7 +5,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'api_service.dart';
 
-// Точка входа для фонового процесса
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(SensorTaskHandler());
@@ -14,7 +13,7 @@ void startCallback() {
 class SensorTaskHandler extends TaskHandler {
   StreamSubscription? _accelSubscription;
   bool isMonitoring = true;
-  final double bumpThreshold = 15.0; // Порог ямы
+  final double bumpThreshold = 7.0; // Порог для теста
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -26,7 +25,7 @@ class SensorTaskHandler extends TaskHandler {
       double force = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
 
       if (force > bumpThreshold) {
-        isMonitoring = false; // Блокируем сенсор на время отправки ямы
+        isMonitoring = false; 
 
         try {
           Position position = await Geolocator.getCurrentPosition(
@@ -35,10 +34,18 @@ class SensorTaskHandler extends TaskHandler {
           
           double speedKmh = position.speed * 3.6;
 
-          if (speedKmh > 20.0) {
+          if (speedKmh >= 0.0) { // 0.0 для теста "на столе"
             FlutterForegroundTask.sendDataToMain("УДАР (${force.toStringAsFixed(1)}). Отправка...");
-            // Отправляем на сервер прямо из фонового режима
-            await ApiService.sendBump(position.latitude, position.longitude, speedKmh, force);
+            
+            // Отправляем на сервер
+            bool success = await ApiService.sendBump(position.latitude, position.longitude, speedKmh, force);
+            
+            // Передаем статус на экран безопасно
+            if (success) {
+              FlutterForegroundTask.sendDataToMain("УСПЕХ! Данные на сервере.");
+            } else {
+              FlutterForegroundTask.sendDataToMain("Ошибка сети/сервера.");
+            }
           } else {
             FlutterForegroundTask.sendDataToMain("Удар, но скорость мала: ${speedKmh.toStringAsFixed(1)} км/ч");
           }
@@ -46,7 +53,6 @@ class SensorTaskHandler extends TaskHandler {
           FlutterForegroundTask.sendDataToMain("Ошибка GPS в фоне: $e");
         }
 
-        // Ждем 2 секунды перед тем, как ловить следующую яму
         Future.delayed(const Duration(seconds: 2), () {
           isMonitoring = true;
         });
@@ -54,11 +60,8 @@ class SensorTaskHandler extends TaskHandler {
     });
   }
 
-  // ИСПРАВЛЕНО: Убран лишний параметр SendPort
   @override
-  void onRepeatEvent(DateTime timestamp) {
-    // Вызывается периодически по таймеру
-  }
+  void onRepeatEvent(DateTime timestamp) {}
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTaskDestroyed) async {

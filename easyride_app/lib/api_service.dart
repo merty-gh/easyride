@@ -7,12 +7,14 @@ class ApiService {
   
   static ValueNotifier<List<String>> logs = ValueNotifier([]);
 
+  // Этот метод вызываем ТОЛЬКО из главного экрана (UI)
   static void addLog(String message) {
     final time = DateTime.now().toString().split(' ').last.substring(0, 8);
     logs.value = ["[$time] $message", ...logs.value]; 
   }
 
-  static Future<void> sendBump(double lat, double lon, double speed, double force) async {
+  // Метод только отправляет данные и возвращает успех/ошибку (БЕЗ логов)
+  static Future<bool> sendBump(double lat, double lon, double speed, double force) async {
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
@@ -25,14 +27,9 @@ class ApiService {
           'bump_force': force,
         }),
       );
-      
-      if (response.statusCode == 200) {
-        addLog("УСПЕХ! Сила: ${force.toStringAsFixed(1)}, Скорость: ${speed.toStringAsFixed(1)} км/ч");
-      } else {
-        addLog("Ошибка сервера: Код ${response.statusCode}");
-      }
+      return response.statusCode == 200;
     } catch (e) {
-      addLog("Ошибка сети: Нет связи с сервером");
+      return false;
     }
   }
 
