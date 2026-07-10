@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart'; // ДОБАВЛЕНО для GPS
 import 'api_service.dart';
 
 class MapScreen extends StatefulWidget {
@@ -11,13 +12,32 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  final MapController _mapController = MapController(); // ДОБАВЛЕНО: Контроллер карты
   List<CircleMarker> _roadSegments = [];
   List<Marker> _unconfirmedMarkers = [];
+  LatLng? _myLocation; // Твои текущие координаты
 
   @override
   void initState() {
     super.initState();
     _loadBumps();
+    _locateUser(); // Запускаем поиск юзера при открытии
+  }
+
+  // ДОБАВЛЕНО: Функция поиска твоей геопозиции
+  Future<void> _locateUser() async {
+    try {
+      Position pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high)
+      );
+      setState(() {
+        _myLocation = LatLng(pos.latitude, pos.longitude);
+      });
+      // Центрируем камеру на тебе с приближением (Zoom 15.0)
+      _mapController.move(_myLocation!, 15.0);
+    } catch (e) {
+      debugPrint("Не удалось получить GPS: $e");
+    }
   }
 
   void _loadBumps() async {
@@ -47,10 +67,10 @@ class _MapScreenState extends State<MapScreen> {
       double radius = 10.0; 
 
       if (force > 30) {
-        roadColor = Colors.redAccent.withValues(alpha: 0.7); // Исправлено здесь
+        roadColor = Colors.redAccent.withValues(alpha: 0.7); 
         radius = 15.0;
       } else if (force > 20) {
-        roadColor = Colors.orangeAccent.withValues(alpha: 0.7); // Исправлено здесь
+        roadColor = Colors.orangeAccent.withValues(alpha: 0.7); 
         radius = 12.0;
       }
 
@@ -76,6 +96,7 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Состояние дорог"), backgroundColor: Colors.black87),
       body: FlutterMap(
+        mapController: _mapController, // Привязываем контроллер
         options: const MapOptions(
           initialCenter: LatLng(55.751244, 37.618423), 
           initialZoom: 14.0,
@@ -87,13 +108,26 @@ class _MapScreenState extends State<MapScreen> {
             userAgentPackageName: 'com.easyride.app',
           ),
           CircleLayer(circles: _roadSegments),
-          MarkerLayer(markers: _unconfirmedMarkers),
+          MarkerLayer(markers: [
+            ..._unconfirmedMarkers,
+            // ДОБАВЛЕНО: Рисуем синюю точку на твоем местоположении
+            if (_myLocation != null)
+              Marker(
+                point: _myLocation!,
+                width: 40,
+                height: 40,
+                child: const Icon(Icons.my_location, color: Colors.blueAccent, size: 30),
+              )
+          ]),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.black87,
-        onPressed: _loadBumps,
-        child: const Icon(Icons.refresh, color: Colors.white),
+        onPressed: () {
+          _loadBumps();
+          _locateUser(); // При обновлении тоже центрируем карту
+        },
+        child: const Icon(Icons.my_location, color: Colors.white),
       ),
     );
   }

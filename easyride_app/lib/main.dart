@@ -6,6 +6,7 @@ import 'api_service.dart';
 import 'map_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   FlutterForegroundTask.initCommunicationPort();
   runApp(const MyApp()); 
 }
@@ -36,18 +37,15 @@ class _DashboardState extends State<Dashboard> {
   void initState() {
     super.initState();
     _initForegroundTask();
-    // ИСПРАВЛЕНО: Новый метод прослушивания данных из фона
     FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
   }
 
   @override
   void dispose() {
-    // Очищаем прослушиватель при закрытии
     FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
     super.dispose();
   }
 
-  // ИСПРАВЛЕНО: Функция для получения логов
   void _onReceiveTaskData(Object data) {
     if (data is String) {
       ApiService.addLog(data);
@@ -59,7 +57,6 @@ class _DashboardState extends State<Dashboard> {
     await FlutterForegroundTask.requestNotificationPermission();
     await FlutterForegroundTask.requestIgnoreBatteryOptimization();
 
-    // ИСПРАВЛЕНО: Обновленный синтаксис настроек под версию 9.x
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'easyride_tracking',
@@ -67,14 +64,13 @@ class _DashboardState extends State<Dashboard> {
         channelDescription: 'Сканирование ям работает в фоне',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
-        // iconData убран, подхватится стандартная иконка
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: true,
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(5000), // Новый синтаксис интервала
+        eventAction: ForegroundTaskEventAction.repeat(5000),
         allowWakeLock: true,
         allowWifiLock: true,
       ),
@@ -82,19 +78,27 @@ class _DashboardState extends State<Dashboard> {
   }
 
   void _toggleTracking() async {
-    if (_isActive) {
-      await FlutterForegroundTask.stopService();
-      setState(() => _isActive = false);
-    } else {
-      if (await FlutterForegroundTask.isRunningService) {
+    try {
+      if (_isActive) {
+        ApiService.addLog("Остановка службы..."); // Лог прямо с UI
         await FlutterForegroundTask.stopService();
+        setState(() => _isActive = false);
+      } else {
+        ApiService.addLog("Запуск службы (ожидание фона)..."); // Лог прямо с UI
+        
+        if (await FlutterForegroundTask.isRunningService) {
+          await FlutterForegroundTask.stopService();
+        }
+        
+        await FlutterForegroundTask.startService(
+          notificationTitle: 'EasyRide',
+          notificationText: 'Сканирование дороги активно',
+          callback: startCallback,
+        );
+        setState(() => _isActive = true);
       }
-      await FlutterForegroundTask.startService(
-        notificationTitle: 'EasyRide',
-        notificationText: 'Сканирование дороги активно',
-        callback: startCallback,
-      );
-      setState(() => _isActive = true);
+    } catch (e) {
+      ApiService.addLog("❌ Ошибка старта службы: $e");
     }
   }
 
