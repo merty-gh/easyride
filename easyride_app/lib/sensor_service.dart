@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui'; // ДОБАВЛЕНО для регистрации плагинов в фоне
+import 'dart:ui'; // Для фоновых плагинов
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -10,17 +9,17 @@ import 'api_service.dart';
 
 @pragma('vm:entry-point')
 void startCallback() {
-  // КРИТИЧЕСКИ ВАЖНО: Инициализируем плагины для фонового потока
+  // Инициализируем только ядро Dart для фонового потока
   DartPluginRegistrant.ensureInitialized();
-  WidgetsFlutterBinding.ensureInitialized();
-  
   FlutterForegroundTask.setTaskHandler(SensorTaskHandler());
 }
 
 class SensorTaskHandler extends TaskHandler {
   StreamSubscription? _accelSubscription;
-  bool isMonitoring = true;
-  final double bumpThreshold = 7.0; // Порог для теста
+  
+  // ВЕРНУЛ ПОТЕРЯННЫЕ ПЕРЕМЕННЫЕ
+  bool isMonitoring = true; 
+  final double bumpThreshold = 7.0; // Порог ямы для тестов
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -67,7 +66,9 @@ class SensorTaskHandler extends TaskHandler {
   }
 
   @override
-  void onRepeatEvent(DateTime timestamp) {}
+  void onRepeatEvent(DateTime timestamp) {
+    // Оставляем пустым
+  }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTaskDestroyed) async {
