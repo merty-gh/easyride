@@ -17,8 +17,8 @@
         android:usesCleartextTraffic="true">
         
         <service
-            android:name="com.pravera.flutter_foreground_task.services.ForegroundService"
-            android:foregroundServiceType="location"
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="location|dataSync"
             android:exported="false" />
 
         <activity

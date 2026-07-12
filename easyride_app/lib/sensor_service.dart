@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui'; // Для фоновых плагинов
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -9,6 +10,7 @@ import 'api_service.dart';
 
 @pragma('vm:entry-point')
 void startCallback() {
+  WidgetsFlutterBinding.ensureInitialized();
   // Инициализируем только ядро Dart для фонового потока
   DartPluginRegistrant.ensureInitialized();
   FlutterForegroundTask.setTaskHandler(SensorTaskHandler());
