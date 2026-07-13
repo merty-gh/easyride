@@ -52,7 +52,7 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
-  Future<void> _initForegroundTask() async {
+Future<void> _initForegroundTask() async {
     await Geolocator.requestPermission();
     await FlutterForegroundTask.requestNotificationPermission();
     await FlutterForegroundTask.requestIgnoreBatteryOptimization();
@@ -80,16 +80,17 @@ class _DashboardState extends State<Dashboard> {
   void _toggleTracking() async {
     try {
       if (_isActive) {
-        ApiService.addLog("Остановка службы..."); // Лог прямо с UI
+        ApiService.addLog("Остановка службы...");
         await FlutterForegroundTask.stopService();
         setState(() => _isActive = false);
       } else {
-        ApiService.addLog("Запуск службы (ожидание фона)..."); // Лог прямо с UI
+        ApiService.addLog("Запуск службы...");
         
         if (await FlutterForegroundTask.isRunningService) {
           await FlutterForegroundTask.stopService();
         }
         
+        // ИСПРАВЛЕНО ДЛЯ ANDROID 14: Передаем ServiceRequest
         await FlutterForegroundTask.startService(
           notificationTitle: 'EasyRide',
           notificationText: 'Сканирование дороги активно',
@@ -98,7 +99,7 @@ class _DashboardState extends State<Dashboard> {
         setState(() => _isActive = true);
       }
     } catch (e) {
-      ApiService.addLog("❌ Ошибка старта службы: $e");
+      ApiService.addLog("❌ Ошибка старта: $e");
     }
   }
 
