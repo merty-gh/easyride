@@ -4,6 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'sensor_service.dart';
 import 'api_service.dart';
 import 'map_screen.dart';
+import 'app_theme.dart';
+import 'main_scaffold.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,9 +18,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: Dashboard(),
+      theme: AppTheme.lightTheme,
+      home: const MainScaffold(),
     );
   }
 }
@@ -90,7 +93,6 @@ Future<void> _initForegroundTask() async {
           await FlutterForegroundTask.stopService();
         }
         
-        // ИСПРАВЛЕНО ДЛЯ ANDROID 14: Передаем ServiceRequest
         await FlutterForegroundTask.startService(
           notificationTitle: 'EasyRide',
           notificationText: 'Сканирование дороги активно',
@@ -99,7 +101,7 @@ Future<void> _initForegroundTask() async {
         setState(() => _isActive = true);
       }
     } catch (e) {
-      ApiService.addLog("❌ Ошибка старта: $e");
+      ApiService.addLog("Ошибка старта: $e");
     }
   }
 

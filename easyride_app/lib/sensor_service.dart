@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui'; // Для фоновых плагинов
+import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -11,7 +11,6 @@ import 'api_service.dart';
 @pragma('vm:entry-point')
 void startCallback() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Инициализируем только ядро Dart для фонового потока
   DartPluginRegistrant.ensureInitialized();
   FlutterForegroundTask.setTaskHandler(SensorTaskHandler());
 }
@@ -19,13 +18,12 @@ void startCallback() {
 class SensorTaskHandler extends TaskHandler {
   StreamSubscription? _accelSubscription;
   
-  // ВЕРНУЛ ПОТЕРЯННЫЕ ПЕРЕМЕННЫЕ
   bool isMonitoring = true; 
-  final double bumpThreshold = 7.0; // Порог ямы для тестов
+  final double bumpThreshold = 7.0;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    FlutterForegroundTask.sendDataToMain("🟢 ФОН: Мониторинг запущен...");
+    FlutterForegroundTask.sendDataToMain("Мониторинг запущен...");
 
     _accelSubscription = userAccelerometerEventStream().listen((event) async {
       if (!isMonitoring) return;
@@ -42,22 +40,21 @@ class SensorTaskHandler extends TaskHandler {
           
           double speedKmh = position.speed * 3.6;
 
-          if (speedKmh >= 0.0) { // 0.0 для теста "на столе"
-            FlutterForegroundTask.sendDataToMain("⚡ УДАР (${force.toStringAsFixed(1)}). Отправка...");
+          if (speedKmh >= 0.0) {
+            FlutterForegroundTask.sendDataToMain("УДАР (${force.toStringAsFixed(1)}). Отправка...");
             
-            // Отправляем на сервер
             bool success = await ApiService.sendBump(position.latitude, position.longitude, speedKmh, force);
             
             if (success) {
-              FlutterForegroundTask.sendDataToMain("✅ УСПЕХ! Данные на сервере.");
+              FlutterForegroundTask.sendDataToMain("УСПЕХ! Данные на сервере.");
             } else {
-              FlutterForegroundTask.sendDataToMain("❌ Ошибка сети/сервера.");
+              FlutterForegroundTask.sendDataToMain("Ошибка сети/сервера.");
             }
           } else {
-            FlutterForegroundTask.sendDataToMain("⚠️ Удар, но скорость мала: ${speedKmh.toStringAsFixed(1)} км/ч");
+            FlutterForegroundTask.sendDataToMain("Удар, но скорость мала: ${speedKmh.toStringAsFixed(1)} км/ч");
           }
         } catch (e) {
-          FlutterForegroundTask.sendDataToMain("❌ Ошибка GPS в фоне: $e");
+          FlutterForegroundTask.sendDataToMain("Ошибка GPS в фоне: $e");
         }
 
         Future.delayed(const Duration(seconds: 2), () {
@@ -69,12 +66,11 @@ class SensorTaskHandler extends TaskHandler {
 
   @override
   void onRepeatEvent(DateTime timestamp) {
-    // Оставляем пустым
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTaskDestroyed) async {
     await _accelSubscription?.cancel();
-    FlutterForegroundTask.sendDataToMain("🛑 ФОН: Мониторинг остановлен");
+    FlutterForegroundTask.sendDataToMain("Мониторинг остановлен");
   }
 }
